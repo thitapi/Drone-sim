@@ -1,0 +1,5 @@
+<launch>
+  <param command="$(find xacro)/xacro --inorder '$(find exp1)/urdf/untitled_Cube.urdf.xacro'" name="untitled_Cube_description" />
+
+  <node args="-param untitled_Cube_description -urdf -model untitled_Cube" name="spawn_untitled_Cube" pkg="gazebo_ros" respawn="false" type="spawn_model" />
+</launch>

@@ -1,0 +1,6 @@
+<launch>
+  <node name="listener_node" pkg="exp1" type="listener.py" output="screen"/>
+  <node name="server_node" pkg="exp1" type="server.py" output="screen"/>
+  <node name="action_server_node" pkg="exp1" type="action_server.py" output="screen"/>
+</launch>
+

@@ -1,0 +1,8 @@
+<launch>
+  <!-- loading the model into parameter server -->
+  <param name= "robot_model" textfile="$(find exp1)/urdf/mobot.urdf"/>
+
+  <!-- Spawn the model in gazebo -->
+  <node name="spawn_model" pkg="gazebo_ros" type="spawn_model" args="-param robot_model -urdf -model mobot"/>
+
+</launch>

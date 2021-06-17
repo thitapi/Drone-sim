@@ -1,0 +1,9 @@
+# goal
+int64 max
+float64 wait
+---
+# result
+int64 count
+---
+# feedback
+float64 percent

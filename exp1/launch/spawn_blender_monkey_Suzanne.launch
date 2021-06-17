@@ -1,0 +1,5 @@
+<launch>
+  <param command="$(find xacro)/xacro --inorder '$(find exp1)/urdf/blender_monkey_Suzanne.urdf.xacro'" name="blender_monkey_Suzanne_description" />
+
+  <node args="-param blender_monkey_Suzanne_description -urdf -model blender_monkey_Suzanne" name="spawn_blender_monkey_Suzanne" pkg="gazebo_ros" respawn="false" type="spawn_model" />
+</launch>
