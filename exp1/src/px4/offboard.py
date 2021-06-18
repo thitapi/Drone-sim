@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-# ROS python API
 import rospy
 
 # 3D point & Stamped Pose msgs
-from geometry_msgs.msg import Point, PoseStamped
+from geometry_msgs.msg import Point, PoseStamped, Twist
 # import all mavros messages and services
 from mavros_msgs.msg import *
 from mavros_msgs.srv import *
@@ -85,6 +84,8 @@ class Controller:
         self.state = State()
         # Instantiate a setpoints message
         self.sp = PositionTarget()
+        # init velocity
+        self.vel = Twist()
         # set the flag to use position setpoints and yaw angle
         self.sp.type_mask = int('010111111000', 2)
         # LOCAL_NED
@@ -145,12 +146,16 @@ class Controller:
     	self.sp.position.x = self.local_pos.x
     	self.sp.position.y = self.local_pos.y - 5
 
+    def twistCb(self,data):
+        self.vel= data
+        rospy.loginfo("Current state: "+str(self.vel))
+
 
 # Main function
 def main():
 
     # initiate node
-    rospy.init_node('setpoint_node', anonymous=True)
+    rospy.init_node('offboard_node', anonymous=True)
 
     # flight mode object
     modes = fcuModes()
@@ -158,7 +163,7 @@ def main():
     # controller object
     cnt = Controller()
 
-    # ROS loop rate should be after than 2Hz
+    # ROS loop rate should be > 2Hz
     rate = rospy.Rate(20.0)
 
     # Subscribe to drone state
@@ -167,9 +172,14 @@ def main():
     # Subscribe to drone's local position
     rospy.Subscriber('mavros/local_position/pose', PoseStamped, cnt.posCb)
 
-    # Setpoint publisher    
-    sp_pub = rospy.Publisher('mavros/setpoint_raw/local', PositionTarget, queue_size=1)
+    # Subscribe to /cmd_vel for teleoperation
+    rospy.Subscriber('/cmd_vel', Twist, cnt.twistCb)
 
+    # Setpoint publisher    
+    sp_pub = rospy.Publisher('mavros/setpoint_raw/local', PositionTarget)
+
+    # Setpoint_velocity publisher
+    vel_pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel_unstamped', Twist)
 
     # Make sure the drone is armed
     while not cnt.state.armed:
@@ -182,7 +192,7 @@ def main():
 
     # We need to send few setpoint messages, then activate OFFBOARD mode, to take effect
     k=0
-    while k<10:
+    while k<100:
         sp_pub.publish(cnt.sp)
         rate.sleep()
         k = k + 1
@@ -194,13 +204,16 @@ def main():
     last_request=rospy.Time.now()
     while not rospy.is_shutdown():
     	cnt.updateSp()
+        ''' for testing position stream control
         if rospy.Time.now() - last_request < rospy.Duration(20.0):
             cnt.x_dir()
             rospy.loginfo("^^^^^^Going positive x + 5^^^^^^^") 
         elif rospy.Time.now() - last_request < rospy.Duration(23.0):
             cnt.y_dir() 
-            rospy.loginfo("^^^^^^Going positive y + 5^^^^^^^") 
+            rospy.loginfo("^^^^^^Going positive y + 5^^^^^^^")
+        ''' 
     	sp_pub.publish(cnt.sp)
+        vel_pub.publish(cnt.vel)
     	rate.sleep()
 
 if __name__ == '__main__':
