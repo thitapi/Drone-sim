@@ -17,7 +17,7 @@ class fcuModes:
     	rospy.wait_for_service('mavros/cmd/takeoff')
     	try:
     		takeoffService = rospy.ServiceProxy('mavros/cmd/takeoff', mavros_msgs.srv.CommandTOL)
-    		takeoffService(altitude = 3)
+    		return takeoffService(altitude = 3.0)
     	except rospy.ServiceException as e:
     		rospy.logerr("Service takeoff call failed: %s"%str(e))
 
@@ -84,8 +84,8 @@ class Controller:
         self.state = State()
         # Instantiate a setpoints message
         self.sp = PositionTarget()
-        # init velocity
-        self.vel = Twist()
+        # velocity set point
+        self.vel_sp = Twist()
         # set the flag to use position setpoints and yaw angle
         self.sp.type_mask = int('010111111000', 2)
         # LOCAL_NED
@@ -103,11 +103,15 @@ class Controller:
 
         # A Message for the current local position of the drone
         self.local_pos = Point(0.0, 0.0, 3.0)
+        # A Message for the current velocity of the drone
+        self.vel_local = Twist()
 
         # initial values for setpoints
         self.sp.position.x = 0.0
         self.sp.position.y = 0.0
-
+        self.sp.position.z = 3.0
+        self.vel_sp.angular.z = 0.0
+        self.vel_sp.linear.z = 5.0
         # speed of the drone is set using MPC_XY_CRUISE parameter in MAVLink
         # using QGroundControl. By default it is 5 m/s.
 
@@ -115,9 +119,8 @@ class Controller:
 
     ## local position callback
     def posCb(self, msg):
-        self.local_pos.x = msg.pose.position.x
-        self.local_pos.y = msg.pose.position.y
-        self.local_pos.z = msg.pose.position.z
+        self.local_pos.x = msg.pose.position.x 
+        self.local_pos.y = msg.pose.position.y 
         rospy.loginfo("Current position :"+str(self.local_pos))
 
     ## Drone State callback
@@ -125,10 +128,17 @@ class Controller:
         self.state = msg
         rospy.loginfo("Current state: "+str(self.state))
 
+    ## velocity callback
+    def twistCb(self,data):
+        self.vel_local= data
+        rospy.loginfo("Current state: "+str(self.vel_local))
+
     ## Update setpoint message
     def updateSp(self):
         self.sp.position.x = self.local_pos.x
         self.sp.position.y = self.local_pos.y
+        self.sp.position.z = 3.0
+        self.vel_sp = self.vel_local
 
     def x_dir(self):
     	self.sp.position.x = self.local_pos.x + 5
@@ -145,11 +155,6 @@ class Controller:
     def neg_y_dir(self):
     	self.sp.position.x = self.local_pos.x
     	self.sp.position.y = self.local_pos.y - 5
-
-    def twistCb(self,data):
-        self.vel= data
-        rospy.loginfo("Current state: "+str(self.vel))
-
 
 # Main function
 def main():
@@ -176,10 +181,10 @@ def main():
     rospy.Subscriber('/cmd_vel', Twist, cnt.twistCb)
 
     # Setpoint publisher    
-    sp_pub = rospy.Publisher('mavros/setpoint_raw/local', PositionTarget)
+    sp_pub = rospy.Publisher('mavros/setpoint_raw/local', PositionTarget, queue_size=3)
 
     # Setpoint_velocity publisher
-    vel_pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel_unstamped', Twist)
+    vel_pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel_unstamped', Twist, queue_size=3)
 
     # Make sure the drone is armed
     while not cnt.state.armed:
@@ -187,8 +192,8 @@ def main():
         rate.sleep()
 
     # set in takeoff mode and takeoff to default altitude (3 m)
-    modes.setTakeoff()
-    rate.sleep()
+    # modes.setTakeoff()
+    # rate.sleep()
 
     # We need to send few setpoint messages, then activate OFFBOARD mode, to take effect
     k=0
@@ -211,9 +216,10 @@ def main():
         elif rospy.Time.now() - last_request < rospy.Duration(23.0):
             cnt.y_dir() 
             rospy.loginfo("^^^^^^Going positive y + 5^^^^^^^")
-        ''' 
-    	sp_pub.publish(cnt.sp)
-        vel_pub.publish(cnt.vel)
+        '''
+    	if cnt.local_pos.z <=2.5:
+            sp_pub.publish(cnt.sp)
+        vel_pub.publish(cnt.vel_sp)
     	rate.sleep()
 
 if __name__ == '__main__':
